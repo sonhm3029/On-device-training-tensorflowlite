@@ -2,6 +2,7 @@ package org.tensorflow.lite.examples.model;
 
 import org.tensorflow.lite.DataType;
 import org.tensorflow.lite.Interpreter;
+import org.tensorflow.lite.Tensor;
 import org.tensorflow.lite.support.common.FileUtil;
 import org.tensorflow.lite.support.common.ops.NormalizeOp;
 import org.tensorflow.lite.support.image.ImageProcessor;
@@ -51,6 +52,10 @@ public class ModelController {
     private ArrayList<TrainingSample> trainingSamples = new ArrayList<>();
     private String YES = "YES";
     private String NO = "NO";
+    private ByteBuffer modelParameters;
+    private ByteBuffer nextModelParameters;
+    private static final int FLOAT_BYTES = 4;
+
 
 
     public ModelController(Context context){
@@ -58,6 +63,12 @@ public class ModelController {
         if( setupModel(context)) {
             targetHeight = interpreter.getInputTensor(0).shape()[2];
             targetWidth = interpreter.getInputTensor(0).shape()[1];
+
+            int modelParameterSize = interpreter.getInputTensor(0).numElements();
+            int bufferSize = modelParameterSize * FLOAT_BYTES;
+            modelParameters = allocateBuffer(bufferSize);
+            nextModelParameters = allocateBuffer(bufferSize);
+
 
             Log.i(TAG, "WIDTH " + targetWidth + "HEIght " + targetHeight);
         }
@@ -105,11 +116,8 @@ public class ModelController {
 
         Log.d(TAG, "NUM SAMPLES: " + String.valueOf(trainingSamples.size()));
 
-
-
         float[] losses = new float[NUM_EPOCHS];
 
-        int[] inputShape = interpreter.getInputTensor(0).shape();
 
         for(int epoch = 0; epoch < NUM_EPOCHS; ++epoch) {
             Collections.shuffle(trainingSamples);
@@ -199,6 +207,8 @@ public class ModelController {
         };
     }
 
+
+
     public TensorImage preprocessInputImage(Bitmap image) {
         int height = image.getHeight();
         int width = image.getWidth();
@@ -214,8 +224,19 @@ public class ModelController {
         return processedImage;
     }
 
+    public ByteBuffer getParameters()  {
+        return modelParameters;
+    }
+
     public int encoding(String name) {
         int code = (name =="NO") ? 0 : 1;
         return code;
     }
+
+    private static ByteBuffer allocateBuffer(int capacity) {
+        ByteBuffer buffer = ByteBuffer.allocateDirect(capacity);
+        buffer.order(ByteOrder.nativeOrder());
+        return buffer;
+    }
+
 }
