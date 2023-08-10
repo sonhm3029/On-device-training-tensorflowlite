@@ -101,6 +101,14 @@ public class MainActivity extends AppCompatActivity {
             // For older versions, you can access external storage without any special permission
         }
 
+        Button btnTest = findViewById(R.id.button2);
+        btnTest.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                modelController.testModel();
+            }
+        });
+
 
 
 

@@ -3,6 +3,7 @@ package org.tensorflow.lite.examples.model;
 import org.tensorflow.lite.DataType;
 import org.tensorflow.lite.Interpreter;
 import org.tensorflow.lite.Tensor;
+import org.tensorflow.lite.TensorFlowLite;
 import org.tensorflow.lite.support.common.FileUtil;
 import org.tensorflow.lite.support.common.ops.NormalizeOp;
 import org.tensorflow.lite.support.image.ImageProcessor;
@@ -19,6 +20,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.MappedByteBuffer;
+import java.security.Signature;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -56,9 +58,13 @@ public class ModelController {
     private ByteBuffer nextModelParameters;
     private static final int FLOAT_BYTES = 4;
 
+    private String GET_WEIGHT_SIG = "get_trainable_weights";
+    private String UPDATE_WEIGHTS_SIG = "update_weights";
+
 
 
     public ModelController(Context context){
+
         this.context = context;
         if( setupModel(context)) {
             targetHeight = interpreter.getInputTensor(0).shape()[2];
@@ -79,7 +85,7 @@ public class ModelController {
         try {
             Interpreter.Options options = new Interpreter.Options();
             options.setNumThreads(numThreads);
-            MappedByteBuffer modelFile = FileUtil.loadMappedFile(context, "model.tflite");
+            MappedByteBuffer modelFile = FileUtil.loadMappedFile(context, "model_v2.tflite");
             interpreter = new Interpreter(modelFile, options);
             Log.i(TAG, "Load model successfully!");
             return true;
@@ -87,6 +93,11 @@ public class ModelController {
             Log.e(TAG, "TFlite failed to load model with error: " + e.getMessage());
             return false;
         }
+    }
+
+    public void testModel() {
+        Log.i(TAG, "TESTING...");
+        String getTrainableWeightsSignature = String.valueOf(interpreter.getSignatureKeys());
     }
 
     public void startTraining() {
@@ -115,6 +126,9 @@ public class ModelController {
         });
 
         Log.d(TAG, "NUM SAMPLES: " + String.valueOf(trainingSamples.size()));
+
+
+//        interpreter.runSignature("", "", "get_trainable_weights");
 
         float[] losses = new float[NUM_EPOCHS];
 
