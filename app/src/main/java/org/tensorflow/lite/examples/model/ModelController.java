@@ -96,8 +96,31 @@ public class ModelController {
     }
 
     public void testModel() {
-        Log.i(TAG, "TESTING...");
-        String getTrainableWeightsSignature = String.valueOf(interpreter.getSignatureKeys());
+        float[][] params = getWeights();
+
+        float[] weights = divideArray(params[0], 2);
+        float[] bias = divideArray(params[0], 2);
+
+
+
+    }
+
+    public float[][] getWeights() {
+        Map<String, Object> inputs = new HashMap<>();
+        Map<String, Object> outputs = new HashMap<>();
+
+        FloatBuffer weights = FloatBuffer.allocate(1280);
+        FloatBuffer bias = FloatBuffer.allocate(1);
+
+        inputs.put("str", "OK");
+        outputs.put("weights",weights);
+        outputs.put("bias", bias);
+        interpreter.runSignature(inputs, outputs, GET_WEIGHT_SIG);
+
+        float[] weightsArr = weights.array();
+        float[] biasF = bias.array();
+
+        return new float[][]{weightsArr, biasF};
     }
 
     public void startTraining() {
@@ -126,12 +149,7 @@ public class ModelController {
         });
 
         Log.d(TAG, "NUM SAMPLES: " + String.valueOf(trainingSamples.size()));
-
-
-//        interpreter.runSignature("", "", "get_trainable_weights");
-
         float[] losses = new float[NUM_EPOCHS];
-
 
         for(int epoch = 0; epoch < NUM_EPOCHS; ++epoch) {
             Collections.shuffle(trainingSamples);
@@ -194,6 +212,15 @@ public class ModelController {
             trainingSamples.add(new TrainingSample(tensorImage, encoding(className)));
         }
 
+    }
+
+    public static float[] divideArray(float[] arr, int divisor) {
+        float[] result = new float[arr.length];
+        for (int i = 0; i< arr.length; i++) {
+            result[i] = arr[i] / divisor;
+        }
+
+        return result;
     }
 
     public Iterator<List<TrainingSample>> trainingBatches(int batchSize) {
