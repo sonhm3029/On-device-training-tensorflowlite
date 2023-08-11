@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 import java.nio.MappedByteBuffer;
 import java.security.Signature;
 import java.util.ArrayList;
@@ -85,7 +86,7 @@ public class ModelController {
         try {
             Interpreter.Options options = new Interpreter.Options();
             options.setNumThreads(numThreads);
-            MappedByteBuffer modelFile = FileUtil.loadMappedFile(context, "model_v2.tflite");
+            MappedByteBuffer modelFile = FileUtil.loadMappedFile(context, "model_v7.tflite");
             interpreter = new Interpreter(modelFile, options);
             Log.i(TAG, "Load model successfully!");
             return true;
@@ -99,7 +100,12 @@ public class ModelController {
         float[][] params = getWeights();
 
         float[] weights = divideArray(params[0], 2);
-        float[] bias = divideArray(params[0], 2);
+        float[] bias = divideArray(params[1], 2);
+
+        float[][] newParams = new float[][]{weights, bias};
+        updateWeights(newParams);
+
+        float[][] afterUpdate = getWeights();
 
 
 
@@ -121,6 +127,34 @@ public class ModelController {
         float[] biasF = bias.array();
 
         return new float[][]{weightsArr, biasF};
+    }
+
+    public void updateWeights(float[][] params) {
+        try {
+            float[] weights = params[0];
+            float[] bias = params[1];
+
+            Map<String, Object> inputs = new HashMap<>();
+            Map<String, Object> outputs = new HashMap<>();
+
+            float[][] weights2D = new float[1280][1];
+            for(int i =0; i< weights.length; i++) {
+                weights2D[i][0] = weights[i];
+            }
+
+
+            inputs.put("w", weights2D);
+            inputs.put("b", bias);
+
+            IntBuffer out = IntBuffer.allocate(1);
+            outputs.put("message", out);
+
+            interpreter.runSignature(inputs, outputs, UPDATE_WEIGHTS_SIG);
+
+            Log.i(TAG, "SUCCESS UPDATE WEIGHT");
+        }catch (Exception e){
+            Log.e(TAG, "ERROR UPDATE WEIGHT" + e.getMessage());
+        }
     }
 
     public void startTraining() {
