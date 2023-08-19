@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.application'
+    id 'com.google.protobuf' version '0.9.1'
 }
 
 android {
@@ -28,6 +29,25 @@ android {
     }
 }
 
+protobuf {
+    protoc { artifact = 'com.google.protobuf:protoc:3.22.3' }
+    plugins {
+        grpc { artifact = 'io.grpc:protoc-gen-grpc-java:1.57.1' // CURRENT_GRPC_VERSION
+        }
+    }
+    generateProtoTasks {
+        all().each { task ->
+            task.builtins {
+                java { option 'lite' }
+            }
+            task.plugins {
+                grpc { // Options added to --grpc_out
+                    option 'lite' }
+            }
+        }
+    }
+}
+
 dependencies {
 
     implementation 'androidx.appcompat:appcompat:1.6.1'
@@ -42,4 +62,10 @@ dependencies {
     implementation 'org.tensorflow:tensorflow-lite-gpu:2.9.0'
     implementation 'org.tensorflow:tensorflow-lite-support:0.4.2'
     implementation 'org.tensorflow:tensorflow-lite-select-tf-ops:2.9.0'
+
+    // grpc dependencies
+    implementation 'io.grpc:grpc-okhttp:1.57.1' // CURRENT_GRPC_VERSION
+    implementation 'io.grpc:grpc-protobuf-lite:1.57.1' // CURRENT_GRPC_VERSION
+    implementation 'io.grpc:grpc-stub:1.57.1' // CURRENT_GRPC_VERSION
+    implementation 'org.apache.tomcat:annotations-api:6.0.53'
 }

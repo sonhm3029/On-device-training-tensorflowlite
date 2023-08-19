@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -35,6 +36,18 @@ import android.graphics.BitmapFactory;
 import android.util.Log;
 
 import com.example.tf_lite_ex.R;
+import com.google.protobuf.ByteString;
+
+import io.grpc.Channel;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+import io.grpc.examples.greet.GreeterGrpc;
+import io.grpc.examples.greet.HelloReply;
+import io.grpc.examples.greet.HelloRequest;
+import io.grpc.examples.greet.Parameters;
+import io.grpc.examples.greet.TestReply;
+import io.grpc.examples.greet.TestRequest;
+import io.grpc.stub.StreamObserver;
 
 public class ModelController {
     private Interpreter interpreter = null;
@@ -61,6 +74,10 @@ public class ModelController {
 
     private String GET_WEIGHT_SIG = "get_trainable_weights";
     private String UPDATE_WEIGHTS_SIG = "update_weights";
+
+    // GRPC TASK
+    private ManagedChannel channel;
+
 
 
 
@@ -96,19 +113,80 @@ public class ModelController {
         }
     }
 
+    Throwable failed;
     public void testModel() {
-        float[][] params = getWeights();
+        try {
+            float[][] params = getWeights();
 
-        float[] weights = divideArray(params[0], 2);
-        float[] bias = divideArray(params[1], 2);
+            float[] weights = params[0];
 
-        float[][] newParams = new float[][]{weights, bias};
-        updateWeights(newParams);
+            ByteBuffer buffer = ByteBuffer.allocate(weights.length * 4);
+            for (float value : weights) {
+                buffer.putFloat(value);
+            }
 
-        float[][] afterUpdate = getWeights();
+            buffer.rewind();
+
+            List<ByteString> layers = new ArrayList<>();
+            layers.add(ByteString.copyFrom(buffer));
+            Parameters p = Parameters.newBuilder().addTensors(ByteString.copyFrom(buffer)).setTensorType("ND").build();
+            HelloRequest request = HelloRequest.newBuilder().setParameters(p).build();
 
 
+            channel = ManagedChannelBuilder.forAddress("192.168.1.7", 50051).usePlaintext().build();
+            GreeterGrpc.GreeterStub stub = GreeterGrpc.newStub(channel);
+            Log.i(TAG, "SUCESS CONNECT TO CHANNEL");
 
+            StreamObserver<HelloRequest> requestObserver;
+            final CountDownLatch finishLatch = new CountDownLatch(1);
+
+            requestObserver = stub.interactingHello(
+                    new StreamObserver<HelloReply>() {
+                        @Override
+                        public void onNext(HelloReply value) {
+                            Parameters newPrams = value.getParameters();
+
+                            Log.i(TAG, newPrams.getTensorType());
+                        }
+
+                        @Override
+                        public void onError(Throwable t) {
+                            t.printStackTrace();
+                            failed = t;
+                            finishLatch.countDown();
+                            Log.i(TAG, "ON ERROR STreeam");
+                            Log.e(TAG, t.getMessage());
+                        }
+
+                        @Override
+                        public void onCompleted() {
+                            finishLatch.countDown();
+                            Log.i(TAG, "DONE GRPC");
+                        }
+                    }
+            );
+
+            // Send multiple messages
+            for (int i = 1; i <= 5; i++) {
+                requestObserver.onNext(request);
+            }
+
+            // Signal the end of requests
+            requestObserver.onCompleted();
+
+        }catch (Exception e) {
+            Log.i(TAG, "ERROR" + e.getMessage());
+        }
+
+    }
+
+    public HelloRequest weightsAsProto(ByteBuffer[] weights) {
+        List<ByteString> layers = new ArrayList<>();
+        for (ByteBuffer weight: weights) {
+            layers.add(ByteString.copyFrom(weight));
+        }
+        Parameters p = Parameters.newBuilder().addAllTensors(layers).setTensorType("ND").build();
+        return HelloRequest.newBuilder().setParameters(p).build();
     }
 
     public float[][] getWeights() {
