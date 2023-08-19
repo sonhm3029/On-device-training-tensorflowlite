@@ -14,6 +14,8 @@ import org.tensorflow.lite.support.image.ops.Rot90Op;
 import org.tensorflow.lite.support.label.TensorLabel;
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -114,24 +116,34 @@ public class ModelController {
     }
 
     Throwable failed;
+    public static byte[] floatArrayToBytes(float[] array) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(baos);
+
+        for (float value : array) {
+            dos.writeFloat(value);
+        }
+
+        dos.flush();
+        dos.close();
+
+        return baos.toByteArray();
+    }
     public void testModel() {
         try {
             float[][] params = getWeights();
 
             float[] weights = params[0];
 
-            ByteBuffer buffer = ByteBuffer.allocate(weights.length * 4);
+            ByteBuffer buffer = ByteBuffer.allocate(weights.length * 4); // 4 bytes per float
+            buffer.order(ByteOrder.LITTLE_ENDIAN); // Assuming little-endian format
             for (float value : weights) {
                 buffer.putFloat(value);
             }
-
-            buffer.rewind();
-
-            List<ByteString> layers = new ArrayList<>();
-            layers.add(ByteString.copyFrom(buffer));
-            Parameters p = Parameters.newBuilder().addTensors(ByteString.copyFrom(buffer)).setTensorType("ND").build();
+            byte[] tensorBytes = buffer.array();
+            Parameters p = Parameters.newBuilder()
+                    .addTensors(ByteString.copyFrom(tensorBytes)).setTensorType("ND").build();
             HelloRequest request = HelloRequest.newBuilder().setParameters(p).build();
-
 
             channel = ManagedChannelBuilder.forAddress("192.168.1.7", 50051).usePlaintext().build();
             GreeterGrpc.GreeterStub stub = GreeterGrpc.newStub(channel);
