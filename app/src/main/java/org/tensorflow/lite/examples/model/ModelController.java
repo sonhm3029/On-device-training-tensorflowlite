@@ -156,9 +156,19 @@ public class ModelController {
                     new StreamObserver<HelloReply>() {
                         @Override
                         public void onNext(HelloReply value) {
-                            Parameters newPrams = value.getParameters();
+                            Parameters newParams = value.getParameters();
+                            ByteString tensorBytes = newParams.getTensors(0); // Assuming only one tensor
 
-                            Log.i(TAG, newPrams.getTensorType());
+                            // Convert tensor bytes to a float array
+                            float[] tensorArray = new float[tensorBytes.size() / 4]; // Each float is 4 bytes
+                            ByteBuffer receiveBuffer = tensorBytes.asReadOnlyByteBuffer();
+                            receiveBuffer.order(ByteOrder.LITTLE_ENDIAN); // Assuming little-endian format
+                            for (int i = 0; i < tensorArray.length; i++) {
+                                tensorArray[i] = receiveBuffer.getFloat();
+                            }
+
+
+                            Log.i(TAG, newParams.getTensorType());
                         }
 
                         @Override
