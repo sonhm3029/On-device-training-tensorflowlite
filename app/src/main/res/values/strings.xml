@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Example Tensorflow lite</string>
+    <string name="app_name">IVIRSE FL CLIENT</string>
     <string name="author">Hoàng Minh Sơn</string>
     <string name="LOG_TAG">TF_LITE_LOG</string>
 </resources>

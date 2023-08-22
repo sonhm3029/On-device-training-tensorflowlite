@@ -44,11 +44,9 @@ import io.grpc.Channel;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.examples.greet.GreeterGrpc;
-import io.grpc.examples.greet.HelloReply;
-import io.grpc.examples.greet.HelloRequest;
+import io.grpc.examples.greet.ServerReply;
+import io.grpc.examples.greet.ClientRequest;
 import io.grpc.examples.greet.Parameters;
-import io.grpc.examples.greet.TestReply;
-import io.grpc.examples.greet.TestRequest;
 import io.grpc.stub.StreamObserver;
 
 public class ModelController {
@@ -143,32 +141,40 @@ public class ModelController {
             byte[] tensorBytes = buffer.array();
             Parameters p = Parameters.newBuilder()
                     .addTensors(ByteString.copyFrom(tensorBytes)).setTensorType("ND").build();
-            HelloRequest request = HelloRequest.newBuilder().setParameters(p).build();
+            ClientRequest request = ClientRequest.newBuilder().setParameters(p).build();
 
+
+//            10.0.52.65
+//            192.168.1.7
             channel = ManagedChannelBuilder.forAddress("192.168.1.7", 50051).usePlaintext().build();
             GreeterGrpc.GreeterStub stub = GreeterGrpc.newStub(channel);
             Log.i(TAG, "SUCESS CONNECT TO CHANNEL");
 
-            StreamObserver<HelloRequest> requestObserver;
+            StreamObserver<ClientRequest> requestObserver;
             final CountDownLatch finishLatch = new CountDownLatch(1);
 
             requestObserver = stub.interactingHello(
-                    new StreamObserver<HelloReply>() {
+                    new StreamObserver<ServerReply>() {
                         @Override
-                        public void onNext(HelloReply value) {
-                            Parameters newParams = value.getParameters();
-                            ByteString tensorBytes = newParams.getTensors(0); // Assuming only one tensor
-
-                            // Convert tensor bytes to a float array
-                            float[] tensorArray = new float[tensorBytes.size() / 4]; // Each float is 4 bytes
-                            ByteBuffer receiveBuffer = tensorBytes.asReadOnlyByteBuffer();
-                            receiveBuffer.order(ByteOrder.LITTLE_ENDIAN); // Assuming little-endian format
-                            for (int i = 0; i < tensorArray.length; i++) {
-                                tensorArray[i] = receiveBuffer.getFloat();
+                        public void onNext(ServerReply value) {
+                            if("Waiting for more clients...".equals(value.getMessage())) {
+                                Log.i(TAG, value.getMessage());
+                            }else if("Start training".equals(value.getMessage())) {
+                                Log.i(TAG, "Start training");
                             }
-
-
-                            Log.i(TAG, newParams.getTensorType());
+//                            Parameters newParams = value.getParameters();
+//                            ByteString tensorBytes = newParams.getTensors(0); // Assuming only one tensor
+//
+//                            // Convert tensor bytes to a float array
+//                            float[] tensorArray = new float[tensorBytes.size() / 4]; // Each float is 4 bytes
+//                            ByteBuffer receiveBuffer = tensorBytes.asReadOnlyByteBuffer();
+//                            receiveBuffer.order(ByteOrder.LITTLE_ENDIAN); // Assuming little-endian format
+//                            for (int i = 0; i < tensorArray.length; i++) {
+//                                tensorArray[i] = receiveBuffer.getFloat();
+//                            }
+//
+//
+//                            Log.i(TAG, newParams.getTensorType());
                         }
 
                         @Override
@@ -202,13 +208,13 @@ public class ModelController {
 
     }
 
-    public HelloRequest weightsAsProto(ByteBuffer[] weights) {
+    public ClientRequest weightsAsProto(ByteBuffer[] weights) {
         List<ByteString> layers = new ArrayList<>();
         for (ByteBuffer weight: weights) {
             layers.add(ByteString.copyFrom(weight));
         }
         Parameters p = Parameters.newBuilder().addAllTensors(layers).setTensorType("ND").build();
-        return HelloRequest.newBuilder().setParameters(p).build();
+        return ClientRequest.newBuilder().setParameters(p).build();
     }
 
     public float[][] getWeights() {

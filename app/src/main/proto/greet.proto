@@ -13,37 +13,17 @@ message Parameters {
     string tensor_type = 2;
 }
 
-message HelloRequest {
-    Parameters parameters = 1;
-}
-
-message HelloReply {
-    Parameters parameters = 1;
-}
-
-message DelayedReply {
+message ClientRequest {
     string message = 1;
-    repeated HelloRequest request = 3;
+    Parameters parameters = 2;
 }
 
-message TestRequest {
-    string msg = 1;
-}
-
-message TestReply {
-    string msg = 1;
+message ServerReply {
+    string message = 1;
+    Parameters parameters = 2;
 }
 
 service Greeter {
-    // Unary
-    rpc SayHello (stream TestRequest) returns (stream TestReply);
-
-    // Server Streaming
-    rpc ParrotSaysHello (HelloRequest) returns (stream HelloReply);
-
-    // CLient Streaming
-    rpc ChattyClientSaysHello (stream HelloRequest) returns (DelayedReply);
-
     // Both Streaming
-    rpc InteractingHello (stream HelloRequest) returns (stream HelloReply);
+    rpc InteractingHello (stream ClientRequest) returns (stream ServerReply);
 }
