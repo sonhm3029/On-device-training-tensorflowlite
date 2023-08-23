@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "io.grpc.examples.transport";
+option java_outer_classname = "TransportProto";
+option objc_class_prefix = "TRANS";
+
+package transport;
+
+message Parameters {
+    repeated bytes tensors = 1;
+    string tensor_type = 2;
+}
+
+message ClientRequest {
+    string message = 1;
+    Parameters parameters = 2;
+}
+
+message ServerReply {
+    string message = 1;
+    Parameters parameters = 2;
+}
+
+service Transport {
+    // Both Streaming
+    rpc Join (stream ClientRequest) returns (stream ServerReply);
+}

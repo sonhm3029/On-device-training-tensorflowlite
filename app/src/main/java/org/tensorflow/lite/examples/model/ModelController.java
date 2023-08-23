@@ -43,10 +43,10 @@ import com.google.protobuf.ByteString;
 import io.grpc.Channel;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
-import io.grpc.examples.greet.GreeterGrpc;
-import io.grpc.examples.greet.ServerReply;
-import io.grpc.examples.greet.ClientRequest;
-import io.grpc.examples.greet.Parameters;
+import io.grpc.examples.transport.ClientRequest;
+import io.grpc.examples.transport.Parameters;
+import io.grpc.examples.transport.ServerReply;
+import io.grpc.examples.transport.TransportGrpc;
 import io.grpc.stub.StreamObserver;
 
 public class ModelController {
@@ -147,21 +147,21 @@ public class ModelController {
 //            10.0.52.65
 //            192.168.1.7
             channel = ManagedChannelBuilder.forAddress("192.168.1.7", 50051).usePlaintext().build();
-            GreeterGrpc.GreeterStub stub = GreeterGrpc.newStub(channel);
+            TransportGrpc.TransportStub stub = TransportGrpc.newStub(channel);
             Log.i(TAG, "SUCESS CONNECT TO CHANNEL");
 
             StreamObserver<ClientRequest> requestObserver;
             final CountDownLatch finishLatch = new CountDownLatch(1);
 
-            requestObserver = stub.interactingHello(
+            requestObserver = stub.join(
                     new StreamObserver<ServerReply>() {
                         @Override
                         public void onNext(ServerReply value) {
-                            if("Waiting for more clients...".equals(value.getMessage())) {
-                                Log.i(TAG, value.getMessage());
-                            }else if("Start training".equals(value.getMessage())) {
-                                Log.i(TAG, "Start training");
-                            }
+//                            if("Waiting for more clients...".equals(value.getMessage())) {
+//                                Log.i(TAG, value.getMessage());
+//                            }else if("Start training".equals(value.getMessage())) {
+//                                Log.i(TAG, "Start training");
+//                            }
 //                            Parameters newParams = value.getParameters();
 //                            ByteString tensorBytes = newParams.getTensors(0); // Assuming only one tensor
 //
