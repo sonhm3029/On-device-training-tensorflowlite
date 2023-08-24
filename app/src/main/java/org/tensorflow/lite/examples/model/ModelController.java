@@ -275,7 +275,7 @@ public class ModelController {
         });
     }
 
-    public void startTraining() {
+    public void startTraining(MainActivity activity) {
         Log.i(TAG, "START TRAINING...");
         int NUM_EPOCHS = 10;
         int BATCH_SIZE = 4;
@@ -288,6 +288,7 @@ public class ModelController {
         float[] losses = new float[NUM_EPOCHS];
 
         for(int epoch = 0; epoch < NUM_EPOCHS; ++epoch) {
+            activity.setResultText("Training epoch [" + epoch + "/" + NUM_EPOCHS + "]");
             Collections.shuffle(trainingSamples);
             Iterator<List<TrainingSample>> batchIterator = trainingBatches(BATCH_SIZE);
             int batchIdx = 0;
@@ -331,6 +332,7 @@ public class ModelController {
 
             }
             if ((epoch + 1) %10 == 0) {
+                activity.setResultText("Finished " + (epoch + 1) + "/" + NUM_EPOCHS + ", current loss: " + loss.get(0));
                 Log.i(TAG,
                         "Finished " + (epoch + 1) + "/" + NUM_EPOCHS + ", current loss: " + loss.get(0));
             }

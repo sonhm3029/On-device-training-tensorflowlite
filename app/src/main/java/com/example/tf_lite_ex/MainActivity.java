@@ -335,7 +335,7 @@ public class MainActivity extends AppCompatActivity {
                     float[] bias = bytestring_to_arr(biasBytes);
 
                     params = new float[][]{weights, bias};
-                    activity.ic.fit(params);
+                    activity.ic.fit(params, activity);
 
                     c = weightAsProto(activity.ic.getWeights());
                 }

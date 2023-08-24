@@ -26,9 +26,9 @@ public class IvirseClient {
         return modelController.getWeights();
     }
 
-    public float[][] fit(float[][] params) {
+    public float[][] fit(float[][] params, MainActivity activity) {
         modelController.updateWeights(params);
-        modelController.startTraining();
+        modelController.startTraining(activity);
         return getWeights();
     }
 
