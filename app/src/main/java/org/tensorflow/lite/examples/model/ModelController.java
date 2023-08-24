@@ -31,12 +31,15 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.util.Log;
+import android.view.View;
 
+import com.example.tf_lite_ex.MainActivity;
 import com.example.tf_lite_ex.R;
 import com.google.protobuf.ByteString;
 
@@ -79,8 +82,6 @@ public class ModelController {
     private ManagedChannel channel;
 
 
-
-
     public ModelController(Context context){
 
         this.context = context;
@@ -114,33 +115,19 @@ public class ModelController {
     }
 
     Throwable failed;
-    public static byte[] floatArrayToBytes(float[] array) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(baos);
-
-        for (float value : array) {
-            dos.writeFloat(value);
-        }
-
-        dos.flush();
-        dos.close();
-
-        return baos.toByteArray();
-    }
     public void testModel() {
         try {
             float[][] params = getWeights();
 
             float[] weights = params[0];
+            float[] bias = params[1];
 
-            ByteBuffer buffer = ByteBuffer.allocate(weights.length * 4); // 4 bytes per float
-            buffer.order(ByteOrder.LITTLE_ENDIAN); // Assuming little-endian format
-            for (float value : weights) {
-                buffer.putFloat(value);
-            }
-            byte[] tensorBytes = buffer.array();
+            List<ByteString> layers = new ArrayList<>();
+            layers.add(ByteString.copyFrom(float_arr_to_bytebuffer(weights)));
+            layers.add(ByteString.copyFrom(float_arr_to_bytebuffer(bias)));
+
             Parameters p = Parameters.newBuilder()
-                    .addTensors(ByteString.copyFrom(tensorBytes)).setTensorType("ND").build();
+                    .addAllTensors(layers).setTensorType("ND").build();
             ClientRequest request = ClientRequest.newBuilder().setParameters(p).build();
 
 
@@ -193,28 +180,33 @@ public class ModelController {
                         }
                     }
             );
-
-            // Send multiple messages
-            for (int i = 1; i <= 5; i++) {
-                requestObserver.onNext(request);
-            }
-
-            // Signal the end of requests
-            requestObserver.onCompleted();
-
         }catch (Exception e) {
             Log.i(TAG, "ERROR" + e.getMessage());
         }
 
     }
 
-    public ClientRequest weightsAsProto(ByteBuffer[] weights) {
-        List<ByteString> layers = new ArrayList<>();
-        for (ByteBuffer weight: weights) {
-            layers.add(ByteString.copyFrom(weight));
+    public byte[] float_arr_to_bytes(float[] arr) {
+        ByteBuffer buffer = ByteBuffer.allocateDirect(arr.length * 4); // 4 bytes per float
+        buffer.order(ByteOrder.nativeOrder()); // Assuming little-endian format
+        for (float value : arr) {
+            buffer.putFloat(value);
         }
-        Parameters p = Parameters.newBuilder().addAllTensors(layers).setTensorType("ND").build();
-        return ClientRequest.newBuilder().setParameters(p).build();
+        byte[] tensorBytes = buffer.array();
+
+        return tensorBytes;
+    }
+
+    public static ByteBuffer float_arr_to_bytebuffer(float[] arr) {
+        ByteBuffer buffer = ByteBuffer.allocateDirect(arr.length * FLOAT_BYTES); // 4 bytes per float
+        buffer.order(ByteOrder.nativeOrder());
+        for (float value : arr) {
+            buffer.putFloat(value);
+        }
+
+        buffer.rewind();
+
+        return buffer;
     }
 
     public float[][] getWeights() {

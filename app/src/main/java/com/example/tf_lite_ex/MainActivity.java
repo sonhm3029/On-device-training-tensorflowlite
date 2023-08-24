@@ -10,18 +10,24 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.content.ClipData;
 import android.content.Intent;
 import android.database.Cursor;
+import android.icu.text.SimpleDateFormat;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.MediaStore;
 import android.provider.Settings;
+import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.google.protobuf.ByteString;
 
 import org.tensorflow.lite.examples.model.ModelController;
 
@@ -32,13 +38,29 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+import io.grpc.examples.transport.ClientRequest;
+import io.grpc.examples.transport.Parameters;
+import io.grpc.examples.transport.ServerReply;
+import io.grpc.examples.transport.TransportGrpc;
+import io.grpc.stub.StreamObserver;
 
 public class MainActivity extends AppCompatActivity {
 
-    private String Tag = "TF_LITE_LOG";
+    private static final String Tag = "TF_LITE_LOG";
     private ModelController modelController;
     private File imageFolder;
     private File yesFolder;
@@ -46,14 +68,19 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_IMAGE_PICKER_YES = 10;
     private static final int REQUEST_IMAGE_PICKER_NO = 20;
     private static final int MANAGE_EXTERNAL_STORAGE_PERMISSION_REQUEST_CODE = 101;
+    private ManagedChannel channel;
+    private TextView resultText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+
         Log.i(Tag, "OnCreate");
         modelController = new ModelController(MainActivity.this);
         setContentView(R.layout.firstactivity);
+        resultText = (TextView) findViewById(R.id.grpc_response_text);
+        resultText.setMovementMethod(new ScrollingMovementMethod());
 
         imageFolder = new File(getExternalFilesDir(null), "brain");
 
@@ -73,7 +100,7 @@ public class MainActivity extends AppCompatActivity {
         trainingButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                modelController.startTraining();
+                connect(view);
             }
         });
 
@@ -105,12 +132,9 @@ public class MainActivity extends AppCompatActivity {
         btnTest.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                modelController.testModel();
+                runGrpc(v);
             }
         });
-
-
-
 
     }
 
@@ -194,50 +218,103 @@ public class MainActivity extends AppCompatActivity {
             // Close the streams
             inputStream.close();
             outputStream.close();
-
-
-            // Now, you have the image saved in your app's storage folder (imageFile)
-            // You can further process or display the image as needed
-            // For example, you can create a Bitmap from the file and pass it to your classifyImage function
-//            Bitmap bitmap = BitmapFactory.decodeFile(imageFile.getAbsolutePath());
-//            classifyImage(bitmap);
-
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        Log.i(Tag, "onStart");
+
+
+    public static String getCurrentTime() {
+        Calendar calendar = Calendar.getInstance();
+        int hour = calendar.get(Calendar.HOUR_OF_DAY);
+        int minute = calendar.get(Calendar.MINUTE);
+        int second = calendar.get(Calendar.SECOND);
+
+        // Format the time components manually
+        String formattedTime = String.format("%02d:%02d:%02d", hour, minute, second);
+        return formattedTime;
+    }
+    public void setResultText(String text) {
+        String time = getCurrentTime();
+        resultText.append("\n" + time + "   " + text);
     }
 
-    @Override
-    protected void onPostResume() {
-        super.onPostResume();
-        Log.i(Tag, "onResume");
 
+    //            10.0.52.65
+    //            192.168.1.7
+    public void connect(View view) {
+        channel = ManagedChannelBuilder.forAddress("10.0.52.143", 50051).maxInboundMessageSize(10 * 1024 * 1024).usePlaintext().build();
+        setResultText("Channel object created. Ready to train!");
     }
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-        Log.i(Tag, "onPause");
+    public void runGrpc(View view) {
+        MainActivity activity = this;
+        ExecutorService executor = Executors.newSingleThreadExecutor();
 
+        Handler handler = new Handler(Looper.getMainLooper());
+
+        executor.execute(new Runnable() {
+            private String result;
+            @Override
+            public void run() {
+                try {
+                    (new IvirseServiceRunnale()).run(TransportGrpc.newStub(channel), activity);
+                }catch (Exception e) {
+                    StringWriter sw = new StringWriter();
+                    PrintWriter pw = new PrintWriter(sw);
+                    e.printStackTrace(pw);
+                    pw.flush();
+                    result = "Failed to connect to the FL server \n" + sw;
+                }
+                handler.post(() -> {
+                    setResultText(result);
+                });
+            }
+        });
     }
 
-    @Override
-    protected void onRestart() {
-        super.onRestart();
-        Log.i(Tag, "onRestart");
+    private static class IvirseServiceRunnale{
+        protected Throwable failed;
+        private StreamObserver<ClientRequest> requestObserver;
 
-    }
+        public  void run(TransportGrpc.TransportStub asyncStub, MainActivity activity) {
+            join(asyncStub, activity);
+        }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        Log.i(Tag, "onDestroy");
+        private void join(TransportGrpc.TransportStub asyncStub, MainActivity activity)
+                throws RuntimeException{
 
+            final CountDownLatch finishLatch = new CountDownLatch(1);
+            requestObserver = asyncStub.join(new StreamObserver<ServerReply>() {
+                @Override
+                public void onNext(ServerReply value) {
+                    handleMessage(value, activity);
+                }
+
+                @Override
+                public void onError(Throwable t) {
+                    t.printStackTrace();
+                    failed = t;
+                    finishLatch.countDown();
+                    Log.e(Tag, t.getMessage());
+                }
+
+                @Override
+                public void onCompleted() {
+                    finishLatch.countDown();
+                    Log.e(Tag, "Done");
+                }
+            });
+        }
+
+        private void handleMessage(ServerReply message, MainActivity activity) {
+            try {
+                ClientRequest request = ClientRequest.newBuilder().build();
+                requestObserver.onNext(request);
+            }catch (Exception e) {
+                Log.e(Tag, e.getMessage());
+            }
+        }
     }
 }
