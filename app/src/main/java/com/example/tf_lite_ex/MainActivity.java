@@ -41,6 +41,8 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.Array;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
@@ -61,6 +63,7 @@ import io.grpc.stub.StreamObserver;
 public class MainActivity extends AppCompatActivity {
 
     private static final String Tag = "TF_LITE_LOG";
+    private static final int FLOAT_BYTES = 4;
     private ModelController modelController;
     private File imageFolder;
     private File yesFolder;
@@ -70,6 +73,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int MANAGE_EXTERNAL_STORAGE_PERMISSION_REQUEST_CODE = 101;
     private ManagedChannel channel;
     private TextView resultText;
+    private IvirseClient ic;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,7 +81,6 @@ public class MainActivity extends AppCompatActivity {
 
 
         Log.i(Tag, "OnCreate");
-        modelController = new ModelController(MainActivity.this);
         setContentView(R.layout.firstactivity);
         resultText = (TextView) findViewById(R.id.grpc_response_text);
         resultText.setMovementMethod(new ScrollingMovementMethod());
@@ -135,6 +138,8 @@ public class MainActivity extends AppCompatActivity {
                 runGrpc(v);
             }
         });
+
+        ic = new IvirseClient(MainActivity.this);
 
     }
 
@@ -240,11 +245,10 @@ public class MainActivity extends AppCompatActivity {
         resultText.append("\n" + time + "   " + text);
     }
 
-
     //            10.0.52.65
     //            192.168.1.7
     public void connect(View view) {
-        channel = ManagedChannelBuilder.forAddress("10.0.52.143", 50051).maxInboundMessageSize(10 * 1024 * 1024).usePlaintext().build();
+        channel = ManagedChannelBuilder.forAddress("192.168.1.4", 50051).maxInboundMessageSize(10 * 1024 * 1024).usePlaintext().build();
         setResultText("Channel object created. Ready to train!");
     }
 
@@ -310,11 +314,75 @@ public class MainActivity extends AppCompatActivity {
 
         private void handleMessage(ServerReply message, MainActivity activity) {
             try {
-                ClientRequest request = ClientRequest.newBuilder().build();
-                requestObserver.onNext(request);
+                ClientRequest c = null;
+                float[][] params;
+                Log.i(Tag, message.getMessage());
+                if(message.getMessage().equals("Request parameters")) {
+                    Log.i(Tag, "Send init parameters");
+                    activity.setResultText("Send init parameters");
+
+                    params = activity.ic.getWeights();
+                    c = weightAsProto(params);
+                } else if (message.getMessage().equals("Request fit")) {
+                    Log.i(Tag, "Handling Fit");
+                    activity.setResultText("Handling fit");
+
+                    Parameters globalParams = message.getParameters();
+                    ByteString weightsBytes = globalParams.getTensors(0);
+                    ByteString biasBytes = globalParams.getTensors(1);
+
+                    float[] weights = bytestring_to_arr(weightsBytes);
+                    float[] bias = bytestring_to_arr(biasBytes);
+
+                    params = new float[][]{weights, bias};
+                    activity.ic.fit(params);
+
+                    c = weightAsProto(activity.ic.getWeights());
+                }
+
+                requestObserver.onNext(c);
+                activity.setResultText("Response sent to the server");
             }catch (Exception e) {
                 Log.e(Tag, e.getMessage());
             }
+        }
+
+        private ClientRequest weightAsProto(float[][] params) {
+            float[] weights = params[0];
+            float[] bias = params[1];
+
+            List<ByteString> layers = new ArrayList<>();
+            layers.add(ByteString.copyFrom(float_arr_to_bytebuffer(weights)));
+            layers.add(ByteString.copyFrom(float_arr_to_bytebuffer(bias)));
+
+            Parameters p = Parameters.newBuilder()
+                    .addAllTensors(layers).setTensorType("ND").build();
+            ClientRequest request = ClientRequest.newBuilder().setParameters(p).build();
+
+            return  request;
+        }
+
+        public static ByteBuffer float_arr_to_bytebuffer(float[] arr) {
+            ByteBuffer buffer = ByteBuffer.allocateDirect(arr.length * FLOAT_BYTES); // 4 bytes per float
+            buffer.order(ByteOrder.nativeOrder());
+            for (float value : arr) {
+                buffer.putFloat(value);
+            }
+
+            buffer.rewind();
+
+            return buffer;
+        }
+
+        public float[] bytestring_to_arr(ByteString tensorBytes) {
+            float[] tensorArray = new float[tensorBytes.size() / FLOAT_BYTES];
+            ByteBuffer receiveBuffer = tensorBytes.asReadOnlyByteBuffer();
+            receiveBuffer.order(ByteOrder.nativeOrder());
+            for (int i = 0; i < tensorArray.length; i++) {
+                tensorArray[i] = receiveBuffer.getFloat();
+            }
+
+            return tensorArray;
         }
     }
 }

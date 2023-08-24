@@ -255,13 +255,7 @@ public class ModelController {
         }
     }
 
-    public void startTraining() {
-        Log.i(TAG, "START TRAINING...");
-        int NUM_EPOCHS = 100;
-        int BATCH_SIZE = 4;
-        int IMG_HEIGHT = 160;
-        int IMG_WIDTH = 160;
-        int NUM_BATCHES = (int)Math.ceil((double)trainingSamples.size() / BATCH_SIZE);
+    public void loadData() {
         trainingSamples.clear();
 
         String noFolderPath = context.getExternalFilesDir(null) + "/brain/" + NO;
@@ -279,6 +273,16 @@ public class ModelController {
             addSample(bitmap, NO);
             return true;
         });
+    }
+
+    public void startTraining() {
+        Log.i(TAG, "START TRAINING...");
+        int NUM_EPOCHS = 10;
+        int BATCH_SIZE = 4;
+        int IMG_HEIGHT = 160;
+        int IMG_WIDTH = 160;
+        int NUM_BATCHES = (int)Math.ceil((double)trainingSamples.size() / BATCH_SIZE);
+
 
         Log.d(TAG, "NUM SAMPLES: " + String.valueOf(trainingSamples.size()));
         float[] losses = new float[NUM_EPOCHS];
@@ -328,7 +332,7 @@ public class ModelController {
             }
             if ((epoch + 1) %10 == 0) {
                 Log.i(TAG,
-                        "Finished" + (epoch + 1) + "/" + NUM_EPOCHS + ", current loss: " + loss.get(0));
+                        "Finished " + (epoch + 1) + "/" + NUM_EPOCHS + ", current loss: " + loss.get(0));
             }
         }
 
